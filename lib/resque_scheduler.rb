@@ -238,6 +238,21 @@ module ResqueScheduler
     (replies.nil? || replies.empty?) ? 0 : replies.each_slice(2).collect {|slice| slice.first}.inject(:+)
   end
 
+  def remove_delayed_with_queue(queue,klass, *args)
+    search = encode(job_to_hash_with_queue(queue,klass, args))
+    timestamps = redis.smembers("timestamps:#{search}")
+
+    replies = redis.pipelined do
+      timestamps.each do |key|
+        redis.lrem(key, 0, search)
+        redis.srem("timestamps:#{search}", key)
+      end
+    end
+
+    (replies.nil? || replies.empty?) ? 0 : replies.each_slice(2).collect {|slice| slice.first}.inject(:+)
+  end
+
+
   # Given an encoded item, enqueue it now
   def enqueue_delayed(klass, *args)
     hash = job_to_hash(klass, args)
